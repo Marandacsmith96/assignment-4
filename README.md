@@ -39,7 +39,10 @@ Never commit or share the API key — it lives only in the Colab secret.
   rating, `random.Random(43)` sampling, 900 train / 300 held-out val / 300
   test) with checks that stop the notebook if anything is off
 - Zero-shot and few-shot runs of the hosted class model
-  (`cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit`), greedy decoding, thinking disabled,
+  (`cyankiwi/Qwen3.6-35B-A3B-AWQ-4bit`), greedy decoding, thinking disabled
+  (the flag is sent via `extra_body` so the current openai SDK transmits it
+  reliably — verified against a live probe call), plus a one-call probe that
+  prints the first raw answer before the 300-review loop starts, and
   responses cached to disk
 - Fine-tuning of `unsloth/Llama-3.2-3B-Instruct-bnb-4bit` (4-bit QLoRA,
   r=16, 3 epochs) → adapter ZIP → reloaded from the ZIP onto a fresh model
@@ -47,7 +50,8 @@ Never commit or share the API key — it lives only in the Colab secret.
 - **Disconnect protection:** every expensive stage mirrors its finished
   results to `assignment4_ckpts` in Google Drive as it goes; training
   checkpoints every 50 steps. Re-running the notebook skips finished stages
-  and resumes half-done ones
+  and resumes half-done ones — and any saved stage that is ALL INVALID is
+  refused and re-scored, so a broken earlier run can never poison results
 - Evaluation: balanced accuracy, macro-F1, per-class precision/recall/F1,
   row-normalized confusion matrices (plus an enlarged one for the winner),
   exact pairwise McNemar tests, invalid-response audit
