@@ -1,0 +1,16 @@
+# local data + smoke-test artifacts (regenerable, not part of the submission)
+data/*.jsonl.gz
+data/smoke/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# os junk
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# notebook checkpoints
+.ipynb_checkpoints/
