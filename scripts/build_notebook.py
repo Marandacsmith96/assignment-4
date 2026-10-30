@@ -286,7 +286,8 @@ are recorded and identical in spirit: **temperature 0 (greedy)**, small
 output-token limit (32), **thinking disabled** (the hosted model is a
 reasoning model; without `enable_thinking:false` it spends the token budget
 on its reasoning chain and returns an empty answer — verified before
-building this notebook).
+building this notebook; the flag is sent via `extra_body` so the current
+openai SDK transmits it reliably).
 
 Few-shot examples (2 per class, from the shuffled **training set**):
 POSITIVE: filtered_index 2325, 18906 · NEUTRAL: 3501, 9216 · NEGATIVE: 4969, 14785'''))
@@ -370,7 +371,10 @@ def classify_hosted(messages, approach, fi, retries=3):
             resp = client.chat.completions.create(
                 model=HOSTED_MODEL, messages=messages,
                 temperature=GEN["temperature"], max_tokens=GEN["max_tokens"],
-                chat_template_kwargs={"enable_thinking": GEN["enable_thinking"]},
+                # disable the reasoning chain; extra_body is the SDK-agnostic
+                # way to pass chat_template_kwargs (openai >=2 drops the old
+                # direct kwarg, which made the model think and return empty)
+                extra_body={"chat_template_kwargs": {"enable_thinking": GEN["enable_thinking"]}},
             )
             raw = (resp.choices[0].message.content or "").strip()
             break
@@ -396,7 +400,22 @@ def review_messages(row, fewshot=False):
     msgs.append({"role": "user", "content": user})
     return msgs
 
-print("helpers ready; cache dir:", CACHE_DIR)'''))
+print("helpers ready; cache dir:", CACHE_DIR)
+
+# --- one-call sanity probe: shows the raw model answer + its normalized label
+#     BEFORE the 300-review loop, so a broken transport is visible instantly
+try:
+    probe_msgs = review_messages(test[0], fewshot=False)
+    probe_resp = client.chat.completions.create(
+        model=HOSTED_MODEL, messages=probe_msgs,
+        temperature=GEN["temperature"], max_tokens=GEN["max_tokens"],
+        extra_body={"chat_template_kwargs": {"enable_thinking": GEN["enable_thinking"]}},
+    )
+    probe_raw = (probe_resp.choices[0].message.content or "").strip()
+    print("probe review %d: raw=%r -> %s"
+          % (test[0]["filtered_index"], probe_raw[:80], normalize_label(probe_raw)))
+except Exception as e:
+    print("probe call failed (continuing anyway):", type(e).__name__, str(e)[:120])'''))
 
 # ----------------------------------------------------------------- zero-shot
 CELLS.append(md('''## 7 · Approach A — ZERO-SHOT (hosted model)
@@ -416,27 +435,35 @@ def run_approach(name, fewshot):
         shutil.copyfile(stage_csv(name), "/content/predictions_%s.csv" % name)
         with open("/content/predictions_%s.csv" % name, newline="", encoding="utf-8") as f:
             out = list(csv.DictReader(f))
-        if {int(r["filtered_index"]) for r in out} == e_ids:
+        ids_ok = {int(r["filtered_index"]) for r in out} == e_ids
+        all_invalid = len(out) > 0 and all(r["prediction"] == "INVALID" for r in out)
+        if ids_ok and not all_invalid:
             invalids = sum(r["prediction"] == "INVALID" for r in out)
             print("  [%s] REUSED saved Drive results (%d rows, %d invalid) - stage skipped" % (name, len(out), invalids))
             return out
-        print("  [%s] Drive copy does not match the prescribed test IDs - re-running" % name)
+        if all_invalid:
+            print("  [%s] Drive results are ALL INVALID (broken earlier run) - re-scoring from scratch" % name)
+        else:
+            print("  [%s] Drive copy does not match the prescribed test IDs - re-running" % name)
 
-    # 2) resume a half-finished stage (per-review progress is already in Drive)
+    # 2) resume a half-finished stage (per-review progress is already in Drive);
+    #    INVALID rows are re-scored, so a broken earlier run can never poison a rerun
     done = {}
     if stage_part(name).exists():
         with open(stage_part(name), newline="", encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 done[int(r["filtered_index"])] = r
+        n_bad = sum(1 for r in done.values() if r["prediction"] == "INVALID")
         if done:
-            print("  [%s] resuming: %d of 300 reviews already scored" % (name, len(done)))
+            print("  [%s] resuming: %d of 300 reviewed (%d invalid rows will be re-scored)"
+                  % (name, len(done), n_bad))
 
     # 3) score the missing reviews; append each finished row to Drive immediately
     out, invalids = [], 0
     for i, row in enumerate(test, 1):
-        if row["filtered_index"] in done:
-            out.append(done[row["filtered_index"]])
-            invalids += (done[row["filtered_index"]]["prediction"] == "INVALID")
+        prev = done.get(row["filtered_index"])
+        if prev is not None and prev["prediction"] != "INVALID":
+            out.append(prev)
             continue
         msgs = review_messages(row, fewshot=fewshot)
         pred, raw, cached = classify_hosted(msgs, name, row["filtered_index"])
@@ -643,24 +670,33 @@ if half-done when you re-run.'''))
 CELLS.append(code('''import json, shutil
 if stage_complete("fine_tuned"):
     shutil.copyfile(stage_csv("fine_tuned"), "/content/predictions_fine_tuned.csv")
-    pe_src = CKPT_DIR / "prompt_examples.jsonl"
-    assert pe_src.exists(), "predictions found in Drive but prompt_examples.jsonl is missing"
-    shutil.copyfile(pe_src, "/content/prompt_examples.jsonl")
     ft_out = []
     with open("/content/predictions_fine_tuned.csv", newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             ft_out.append(r)
+    all_invalid = len(ft_out) > 0 and all(r["prediction"] == "INVALID" for r in ft_out)
+else:
+    ft_out, all_invalid = [], False
+if stage_complete("fine_tuned") and not all_invalid:
+    pe_src = CKPT_DIR / "prompt_examples.jsonl"
+    assert pe_src.exists(), "predictions found in Drive but prompt_examples.jsonl is missing"
+    shutil.copyfile(pe_src, "/content/prompt_examples.jsonl")
     invalids = sum(r["prediction"] == "INVALID" for r in ft_out)
     print("REUSED saved Drive fine-tuned results (%d rows, %d invalid) - stage skipped" % (len(ft_out), invalids))
 else:
-    # resume a half-finished pass (per-review progress is already in Drive)
+    if all_invalid:
+        print("saved fine-tuned Drive results are ALL INVALID (broken earlier run) - re-scoring from scratch")
+    # resume a half-finished pass (per-review progress is already in Drive);
+    # INVALID rows are re-scored so a broken earlier run can't poison a rerun
     done = {}
     if stage_part("fine_tuned").exists():
         with open(stage_part("fine_tuned"), newline="", encoding="utf-8") as f:
             for r in csv.DictReader(f):
                 done[int(r["filtered_index"])] = r
+        n_bad = sum(1 for r in done.values() if r["prediction"] == "INVALID")
         if done:
-            print("resuming fine-tuned scoring: %d of 300 already done" % len(done))
+            print("resuming fine-tuned scoring: %d of 300 done (%d invalid rows will be re-scored)"
+                  % (len(done), n_bad))
 
     saved_prompt_classes = set()
     pe_path = CKPT_DIR / "prompt_examples.jsonl"
@@ -672,8 +708,9 @@ else:
     ft_out, invalids = [], 0
     with open(pe_path, "a", encoding="utf-8") as pex:
         for row in test:
-            if row["filtered_index"] in done:
-                ft_out.append(done[row["filtered_index"]])
+            prev = done.get(row["filtered_index"])
+            if prev is not None and prev["prediction"] != "INVALID":
+                ft_out.append(prev)
                 continue
             msgs = review_messages(row, fewshot=False)
             tokens = tokenizer2.apply_chat_template(msgs, tokenize=True,
