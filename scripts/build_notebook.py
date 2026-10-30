@@ -63,7 +63,7 @@ assert torch.cuda.is_available(), "No GPU! Runtime > Change runtime type > T4 GP
 print("GPU OK — T4-class accelerator ready.")
 
 !pip install -q --upgrade pip
-!pip install -q unsloth "transformers" "peft" "trl" "accelerate" "bitsandbytes" "openai" "pandas" "scikit-learn" "scipy" "statsmodels" "matplotlib" "seaborn"
+!pip install -q unsloth "transformers" "peft" "trl" "accelerate" "bitsandbytes" "openai" "pandas" "scikit-learn" "scipy" "statsmodels" "matplotlib" "seaborn" "datasets"
 import importlib
 for m in ("unsloth", "openai", "sklearn", "statsmodels", "seaborn"):
     importlib.import_module(m)
@@ -557,7 +557,8 @@ else:
                 {"role": "assistant", "content": row["label"]}]
         return {"text": tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False)}
 
-    train_ds = [to_chat(r) for r in train]
+    from datasets import Dataset
+    train_ds = Dataset.from_list([to_chat(r) for r in train])
     print("formatted training records:", len(train_ds))
     for i in range(3):
         print("---", train_ds[i]["text"][-160:].replace("\\n", " | "))
