@@ -361,8 +361,10 @@ def _load_cache(approach):
 
 def classify_hosted(messages, approach, fi, retries=3):
     # Cached hosted-model call. Returns (prediction, raw_response, cached_flag).
+    # Cached INVALID entries are NOT trusted: they may come from a broken
+    # transport, so they are re-scored (with retries) instead of reused.
     cache = _load_cache(approach)
-    if fi in cache:
+    if fi in cache and cache[fi]["prediction"] != "INVALID":
         e = cache[fi]
         return e["prediction"], e["raw_response"], True
     raw, err = "", ""
