@@ -760,6 +760,7 @@ else:
         w.writeheader()
         w.writerows(ft_out)
     shutil.copyfile("/content/predictions_fine_tuned.csv", stage_csv("fine_tuned"))
+    shutil.copyfile(pe_path, "/content/prompt_examples.jsonl")  # deliverables cell reads it from /content
     if stage_part("fine_tuned").exists():
         stage_part("fine_tuned").unlink()
     print("wrote /content/predictions_fine_tuned.csv (300 rows, %d invalid) + Drive copy" % invalids)
