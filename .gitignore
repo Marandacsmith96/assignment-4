@@ -14,3 +14,6 @@ desktop.ini
 
 # notebook checkpoints
 .ipynb_checkpoints/
+
+# local staged hosted-stage outputs (regenerable)
+data/local_stage/
