@@ -562,9 +562,11 @@ else:
     for i in range(3):
         print("---", train_ds[i]["text"][-160:].replace("\\n", " | "))
 
-    args = TrainingArguments(
+    # NOTE (transformers >= 5): warmup_ratio was renamed to warmup_steps,
+    # which accepts a fraction (0.1 == 10% warmup, unchanged methodology).
+    TRAIN_KW = dict(
         per_device_train_batch_size=8, gradient_accumulation_steps=1,
-        warmup_ratio=0.1, num_train_epochs=3, learning_rate=2e-4,
+        warmup_steps=0.1, num_train_epochs=3, learning_rate=2e-4,
         fp16=not is_bfloat16_supported(), bf16=is_bfloat16_supported(),
         logging_steps=10, optim="adamw_8bit", weight_decay=0.01,
         lr_scheduler_type="linear", seed=43,
@@ -572,8 +574,22 @@ else:
         report_to="none",
         save_strategy="steps", save_steps=50, save_total_limit=2,
     )
-    trainer = SFTTrainer(model=model, tokenizer=tokenizer, train_dataset=train_ds,
-                         dataset_text_field="text", max_seq_length=1024, args=args)
+    try:
+        args = TrainingArguments(**TRAIN_KW)
+    except TypeError as e:
+        # Only transformers >= 5 is supported by this cell; fail loudly
+        # instead of guessing across API generations.
+        raise RuntimeError("unsupported transformers API for TrainingArguments: %s" % e)
+
+    # Build the trainer; tolerate both the classic trl kwargs and the modern
+    # SFTConfig-style API, so the training step survives either version.
+    try:
+        trainer = SFTTrainer(model=model, tokenizer=tokenizer, train_dataset=train_ds,
+                             dataset_text_field="text", max_seq_length=1024, args=args)
+    except TypeError:
+        from trl import SFTConfig
+        sft_args = SFTConfig(**{**TRAIN_KW, "dataset_text_field": "text", "max_seq_length": 1024})
+        trainer = SFTTrainer(model=model, args=sft_args, train_dataset=train_ds)
     ckpts = sorted((CKPT_DIR / "ft_outputs").glob("checkpoint-*"))
     if ckpts:
         print("resuming training from", ckpts[-1])
