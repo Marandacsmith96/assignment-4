@@ -969,8 +969,9 @@ assert all(p["filtered_index"] in set(ft["filtered_index"]) for p in pe)
 recheck = balanced_accuracy_score(ft["reference_label"], ft["prediction"])
 rmac = f1_score(ft["reference_label"], ft["prediction"], average="macro",
                 labels=CLASSES, zero_division=0)
-assert abs(recheck - summary["fine-tuned"]["balanced_acc"]) < 1e-9
-assert abs(rmac - summary["fine-tuned"]["macro_f1"]) < 1e-9
+# summary values are stored rounded to 4 decimals; compare with matching tolerance
+assert abs(recheck - summary["fine-tuned"]["balanced_acc"]) < 1e-4
+assert abs(rmac - summary["fine-tuned"]["macro_f1"]) < 1e-4
 print("AGREEMENT CHECKS PASSED: predictions file reproduces the reported fine-tuned scores;")
 print("prompt examples are real rows with one entry per reference class.")
 
