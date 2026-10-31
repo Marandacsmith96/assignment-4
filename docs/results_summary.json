@@ -1,0 +1,123 @@
+{
+  "approaches": {
+    "zero_shot": {
+      "balanced_acc": 0.7467,
+      "macro_f1": 0.7216,
+      "correct": 224,
+      "incorrect": 76,
+      "invalid": 0,
+      "per_class": {
+        "POSITIVE": {
+          "tp": 90,
+          "fp": 14,
+          "fn": 10,
+          "precision": 0.8654,
+          "recall": 0.9,
+          "f1": 0.8824
+        },
+        "NEUTRAL": {
+          "tp": 37,
+          "fp": 10,
+          "fn": 63,
+          "precision": 0.7872,
+          "recall": 0.37,
+          "f1": 0.5034
+        },
+        "NEGATIVE": {
+          "tp": 97,
+          "fp": 52,
+          "fn": 3,
+          "precision": 0.651,
+          "recall": 0.97,
+          "f1": 0.7791
+        }
+      }
+    },
+    "few_shot": {
+      "balanced_acc": 0.75,
+      "macro_f1": 0.7272,
+      "correct": 225,
+      "incorrect": 75,
+      "invalid": 0,
+      "per_class": {
+        "POSITIVE": {
+          "tp": 90,
+          "fp": 11,
+          "fn": 10,
+          "precision": 0.8911,
+          "recall": 0.9,
+          "f1": 0.8955
+        },
+        "NEUTRAL": {
+          "tp": 38,
+          "fp": 11,
+          "fn": 62,
+          "precision": 0.7755,
+          "recall": 0.38,
+          "f1": 0.5101
+        },
+        "NEGATIVE": {
+          "tp": 97,
+          "fp": 53,
+          "fn": 3,
+          "precision": 0.6467,
+          "recall": 0.97,
+          "f1": 0.776
+        }
+      }
+    },
+    "fine_tuned": {
+      "balanced_acc": 0.8433,
+      "macro_f1": 0.8424,
+      "correct": 253,
+      "incorrect": 47,
+      "invalid": 0,
+      "per_class": {
+        "POSITIVE": {
+          "tp": 91,
+          "fp": 13,
+          "fn": 9,
+          "precision": 0.875,
+          "recall": 0.91,
+          "f1": 0.8922
+        },
+        "NEUTRAL": {
+          "tp": 75,
+          "fp": 20,
+          "fn": 25,
+          "precision": 0.7895,
+          "recall": 0.75,
+          "f1": 0.7692
+        },
+        "NEGATIVE": {
+          "tp": 87,
+          "fp": 14,
+          "fn": 13,
+          "precision": 0.8614,
+          "recall": 0.87,
+          "f1": 0.8657
+        }
+      }
+    }
+  },
+  "mcnemar": {
+    "zero_shot vs few_shot": {
+      "p": 1.0,
+      "only_first": 2,
+      "only_second": 3,
+      "discordant": 5
+    },
+    "zero_shot vs fine_tuned": {
+      "p": 0.0001,
+      "only_first": 12,
+      "only_second": 41,
+      "discordant": 53
+    },
+    "few_shot vs fine_tuned": {
+      "p": 0.0002,
+      "only_first": 13,
+      "only_second": 41,
+      "discordant": 54
+    }
+  }
+}
